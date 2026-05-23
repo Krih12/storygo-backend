@@ -1,6 +1,8 @@
 const { query } = require('../config/database');
 const { sendOTP } = require('../services/emailService');
 const crypto = require('crypto');
+const jwt = require('jsonwebtoken');
+const environment = require('../config/environment');
 
 const generateOTP = () => crypto.randomInt(100000, 999999).toString();
 
@@ -45,8 +47,14 @@ exports.sendOTP = async (req, res) => {
       [email, otp, purpose, expiresAt]
     );
 
-    // Send email (fire and forget)
-    sendOTP(email, otp, purpose).catch(console.error);
+    // Send email – AWAIT and catch errors
+    try {
+      await sendOTP(email, otp, purpose);
+      console.log(`✅ OTP sent to ${email} for ${purpose}`);
+    } catch (emailError) {
+      console.error(`❌ Email send failed for ${email}:`, emailError.message);
+      return res.status(500).json({ error: 'Failed to send OTP email. Please try again later.' });
+    }
 
     res.json({ success: true, message: 'OTP sent to your email' });
   } catch (error) {
@@ -87,8 +95,6 @@ exports.verifyOTP = async (req, res) => {
         return res.status(404).json({ error: 'User not found' });
       }
       const user = userResult.rows[0];
-      const jwt = require('jsonwebtoken');
-      const environment = require('../config/environment');
       const token = jwt.sign({ userId: user.id, email: user.email }, environment.JWT_SECRET, { expiresIn: environment.JWT_EXPIRE });
 
       res.cookie('token', token, {
