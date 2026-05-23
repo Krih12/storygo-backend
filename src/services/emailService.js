@@ -1,7 +1,7 @@
 const nodemailer = require('nodemailer');
-const dns = require('dns');
 const environment = require('../config/environment');
 
+// Force IPv4 to avoid ENETUNREACH on Render
 const transporter = nodemailer.createTransport({
   host: environment.EMAIL_HOST,
   port: environment.EMAIL_PORT,
@@ -10,15 +10,10 @@ const transporter = nodemailer.createTransport({
     user: environment.EMAIL_USER,
     pass: environment.EMAIL_PASS,
   },
-  // Force IPv4 to avoid ENETUNREACH on Render
-  family: 4,
-  // Alternative if 'family' is not supported:
-  // lookup: (hostname, options, callback) => {
-  //   dns.lookup(hostname, { family: 4 }, callback);
-  // },
+  family: 4, // forces IPv4
 });
 
-// Logo URL – set EMAIL_LOGO_URL in .env (e.g., https://yourdomain.com/logo.png)
+// Logo URL – set EMAIL_LOGO_URL in .env (optional)
 const LOGO_URL = environment.EMAIL_LOGO_URL || '';
 
 const sendOTP = async (to, otp, purpose) => {
@@ -74,12 +69,18 @@ const sendOTP = async (to, otp, purpose) => {
     </html>
   `;
 
-  await transporter.sendMail({
-    from: environment.EMAIL_FROM,
-    to,
-    subject,
-    html,
-  });
+  try {
+    const info = await transporter.sendMail({
+      from: environment.EMAIL_FROM,
+      to,
+      subject,
+      html,
+    });
+    console.log(`✅ Email sent successfully to ${to} - Message ID: ${info.messageId}`);
+  } catch (error) {
+    console.error(`❌ Email send failed to ${to}: ${error.message}`);
+    throw error;
+  }
 };
 
 module.exports = { sendOTP };
