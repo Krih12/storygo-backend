@@ -1,13 +1,12 @@
 {
-  "name": "pocket-fm-server",
+  "name": "storygo-backend",
   "version": "1.0.0",
-  "description": "Advanced audio storytelling platform backend",
+  "description": "Story Go Audio Storytelling Platform Backend",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "server": "nodemon index.js",
-    "db:migrate": "node -e \"require('./src/config/database').initializeDatabase()\"",
-    "test": "jest"
+    "dev": "nodemon index.js",
+    "db:migrate": "node -e \"require('./src/config/database').initializeDatabase().then(() => console.log('Database initialized')).catch(err => { console.error(err); process.exit(1); })\""
   },
   "dependencies": {
     "bcrypt": "^5.1.1",
@@ -19,24 +18,17 @@
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
-    "express-brute": "^1.0.1",
-    "express-mongo-sanitize": "^2.2.0",
     "express-rate-limit": "^7.5.1",
-    "express-slow-down": "^3.1.0",
     "express-validator": "^7.0.1",
     "geoip-lite": "^2.0.2",
     "helmet": "^7.2.0",
     "hpp": "^0.2.3",
-    "joi": "^17.11.0",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
     "multer": "^1.4.5-lts.1",
     "multer-storage-cloudinary": "^4.0.0",
-    "node": "^24.15.0",
-    "node-cron": "^4.2.1",
     "nodemailer": "^8.0.7",
     "passport": "^0.7.0",
-    "passport-apple": "^2.0.2",
     "passport-google-oauth20": "^2.0.0",
     "pg": "^8.11.3",
     "sanitize-html": "^2.17.3",
@@ -46,5 +38,8 @@
   },
   "devDependencies": {
     "nodemon": "^3.0.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
