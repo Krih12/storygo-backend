@@ -110,7 +110,7 @@ const episodeController = {
         [episode.series_id, id]
       );
 
-      // ----- Log listener location -----
+      // Log listener location
       const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
                  req.socket.remoteAddress ||
                  req.ip;
@@ -195,42 +195,56 @@ const episodeController = {
     }
   },
 
-  // Create new episode
+  // ============================================
+  // CREATE EPISODE – FIXED VERSION
+  // ============================================
   createEpisode: async (req, res, next) => {
     const client = await getClient();
     try {
       await client.query('BEGIN');
 
-      // ---------- SANITISE ----------
+      // Sanitize inputs
       const title = clean(req.body.title);
       const description = clean(req.body.description);
-
       const { series_id, episode_number, season_number = 1 } = req.body;
       const creator_id = req.user.id;
 
+      // Verify ownership
       const seriesResult = await client.query(
         'SELECT id, creator_id FROM series WHERE id = $1 AND creator_id = $2',
         [series_id, creator_id]
       );
       if (seriesResult.rows.length === 0) {
+        await client.query('ROLLBACK');
         return res.status(403).json({ status: 'error', message: 'You do not own this series' });
       }
 
+      // Check if audio file exists
       if (!req.files || !req.files.audio || !req.files.audio[0]) {
+        await client.query('ROLLBACK');
         return res.status(400).json({ status: 'error', message: 'Audio file is required' });
       }
+
       const audioFile = req.files.audio[0];
       const audio_url = audioFile.path;
       const audio_public_id = audioFile.filename;
       const file_size_bytes = audioFile.size;
+
+      // Extract duration – Cloudinary may not return it immediately, so try to get it
       let duration_seconds = 0;
-      if (audioFile.duration) duration_seconds = Math.round(audioFile.duration);
+      if (audioFile.duration) {
+        duration_seconds = Math.round(audioFile.duration);
+      } else {
+        // Fallback: you could queue a job to update duration later
+        console.warn(`No duration for episode audio: ${audio_public_id}`);
+      }
 
       let thumbnail_url = null;
       if (req.files.thumbnail && req.files.thumbnail[0]) {
         thumbnail_url = req.files.thumbnail[0].path;
       }
 
+      // Insert episode
       const result = await client.query(
         `INSERT INTO episodes (series_id, title, description, audio_url, audio_public_id,
                               duration_seconds, file_size_bytes, episode_number, season_number, thumbnail_url)
@@ -240,17 +254,26 @@ const episodeController = {
          duration_seconds, file_size_bytes, episode_number, season_number, thumbnail_url]
       );
 
+      // Update series totals
       await client.query(
         `UPDATE series SET total_episodes = total_episodes + 1, total_duration_seconds = total_duration_seconds + $1 WHERE id = $2`,
         [duration_seconds, series_id]
       );
 
       await client.query('COMMIT');
-      return res.status(201).json({ status: 'success', message: 'Episode created successfully', data: { episode: result.rows[0] } });
+      return res.status(201).json({
+        status: 'success',
+        message: 'Episode created successfully',
+        data: { episode: result.rows[0] }
+      });
     } catch (error) {
       await client.query('ROLLBACK');
       console.error('Create episode error:', error);
-      return res.status(500).json({ status: 'error', message: 'Error creating episode' });
+      return res.status(500).json({
+        status: 'error',
+        message: 'Error creating episode',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
     } finally {
       client.release();
     }
@@ -266,7 +289,6 @@ const episodeController = {
       const values = [];
       let paramCount = 1;
 
-      // ---------- SANITISE ----------
       if (req.body.title) {
         updateFields.push(`title = $${paramCount}`);
         values.push(clean(req.body.title));
@@ -301,7 +323,7 @@ const episodeController = {
         }
       }
 
-      // Handle thumbnail file update
+      // Handle thumbnail update
       if (req.files && req.files.thumbnail && req.files.thumbnail[0]) {
         updateFields.push(`thumbnail_url = $${paramCount}`);
         values.push(req.files.thumbnail[0].path);
@@ -366,7 +388,7 @@ const episodeController = {
     }
   },
 
-  // Chapters
+  // Get chapters
   getChapters: async (req, res, next) => {
     try {
       const { id } = req.params;
@@ -381,6 +403,7 @@ const episodeController = {
     }
   },
 
+  // Save chapters
   saveChapters: async (req, res, next) => {
     const client = await getClient();
     try {
@@ -398,7 +421,6 @@ const episodeController = {
 
       await client.query('DELETE FROM chapters WHERE episode_id = $1', [episodeId]);
 
-      // Chapters may have title and start_time_seconds – sanitise title
       for (const ch of chapters) {
         const chapterTitle = clean(ch.title);
         await client.query(
