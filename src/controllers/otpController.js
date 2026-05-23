@@ -93,12 +93,13 @@ exports.verifyOTP = async (req, res) => {
       const user = userResult.rows[0];
       const token = jwt.sign({ userId: user.id, email: user.email }, environment.JWT_SECRET, { expiresIn: environment.JWT_EXPIRE });
 
-      res.cookie('token', token, {
-        httpOnly: true,
-        secure: environment.NODE_ENV === 'production',
-        sameSite: 'strict',
-        maxAge: 7 * 24 * 60 * 60 * 1000,
-      });
+    const isProduction = environment.NODE_ENV === 'production';
+res.cookie('token', token, {
+  httpOnly: true,
+  secure: isProduction,
+  sameSite: isProduction ? 'none' : 'lax',   // production mein 'none' chahiye
+  maxAge: 7 * 24 * 60 * 60 * 1000,
+});
 
       return res.json({ success: true, message: 'Login successful', user, token });
     }
