@@ -1,4 +1,5 @@
 const nodemailer = require('nodemailer');
+const dns = require('dns');
 const environment = require('../config/environment');
 
 const transporter = nodemailer.createTransport({
@@ -9,6 +10,12 @@ const transporter = nodemailer.createTransport({
     user: environment.EMAIL_USER,
     pass: environment.EMAIL_PASS,
   },
+  // Force IPv4 to avoid ENETUNREACH on Render
+  family: 4,
+  // Alternative if 'family' is not supported:
+  // lookup: (hostname, options, callback) => {
+  //   dns.lookup(hostname, { family: 4 }, callback);
+  // },
 });
 
 // Logo URL – set EMAIL_LOGO_URL in .env (e.g., https://yourdomain.com/logo.png)
