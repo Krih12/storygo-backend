@@ -1,5 +1,4 @@
 const { query } = require('../config/database');
-const { sendOTP } = require('../services/emailService');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const environment = require('../config/environment');
@@ -47,16 +46,13 @@ exports.sendOTP = async (req, res) => {
       [email, otp, purpose, expiresAt]
     );
 
-    // Send email – AWAIT and catch errors
-    try {
-      await sendOTP(email, otp, purpose);
-      console.log(`✅ OTP sent to ${email} for ${purpose}`);
-    } catch (emailError) {
-      console.error(`❌ Email send failed for ${email}:`, emailError.message);
-      return res.status(500).json({ error: 'Failed to send OTP email. Please try again later.' });
-    }
+    // 🔥 MOCK OTP – prints to Render logs (no real email)
+    console.log(`🔐 MOCK OTP for ${email}: ${otp}`);
 
-    res.json({ success: true, message: 'OTP sent to your email' });
+    // In production, you would call: await sendOTP(email, otp, purpose);
+    // But for now, skip email sending completely.
+
+    res.json({ success: true, message: 'OTP sent (mock mode – check Render logs)' });
   } catch (error) {
     console.error('Send OTP error:', error);
     res.status(500).json({ error: 'Failed to send OTP' });
