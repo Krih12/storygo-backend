@@ -1,4 +1,6 @@
 const { query } = require('../config/database');
+const bcrypt = require('bcrypt');
+const cloudinary = require('../config/cloudinary').cloudinary;
 
 const userController = {
   // Get user profile
@@ -52,7 +54,6 @@ const userController = {
       if (oldAvatar) {
         const publicId = oldAvatar.split('/').slice(-2).join('/').split('.')[0];
         if (publicId) {
-          const cloudinary = require('cloudinary').v2;
           await cloudinary.uploader.destroy(publicId);
         }
       }
@@ -78,7 +79,6 @@ const userController = {
       if (userRes.rows.length === 0) {
         return res.status(404).json({ status: 'error', message: 'User not found' });
       }
-      const bcrypt = require('bcrypt');
       const isValid = await bcrypt.compare(currentPassword, userRes.rows[0].password_hash);
       if (!isValid) {
         return res.status(401).json({ status: 'error', message: 'Current password is incorrect' });
@@ -169,7 +169,12 @@ const userController = {
         status: 'success',
         data: {
           history: result.rows,
-          pagination: { page: parseInt(page), limit: parseInt(limit), total: parseInt(countResult.rows[0].count), pages: Math.ceil(parseInt(countResult.rows[0].count) / limit) }
+          pagination: {
+            page: parseInt(page),
+            limit: parseInt(limit),
+            total: parseInt(countResult.rows[0].count),
+            pages: Math.ceil(parseInt(countResult.rows[0].count) / limit)
+          }
         }
       });
     } catch (error) {
@@ -178,7 +183,7 @@ const userController = {
     }
   },
 
-  // Get bookmarks (episodes)
+  // Get episode bookmarks
   getBookmarks: async (req, res, next) => {
     try {
       const { page = 1, limit = 20 } = req.query;
@@ -196,7 +201,12 @@ const userController = {
         status: 'success',
         data: {
           bookmarks: result.rows,
-          pagination: { page: parseInt(page), limit: parseInt(limit), total: parseInt(countResult.rows[0].count), pages: Math.ceil(parseInt(countResult.rows[0].count) / limit) }
+          pagination: {
+            page: parseInt(page),
+            limit: parseInt(limit),
+            total: parseInt(countResult.rows[0].count),
+            pages: Math.ceil(parseInt(countResult.rows[0].count) / limit)
+          }
         }
       });
     } catch (error) {
@@ -205,7 +215,43 @@ const userController = {
     }
   },
 
-  // Get following creators (exclude admins)
+  // Get bookmarked series (series the user has bookmarked)
+  getBookmarkedSeries: async (req, res, next) => {
+    try {
+      const userId = req.user.id;
+      const result = await query(
+        `SELECT DISTINCT ON (s.id) s.*, ua.created_at as bookmarked_at
+         FROM user_activity ua JOIN series s ON ua.series_id = s.id
+         WHERE ua.user_id = $1 AND ua.activity_type = 'bookmark'
+         ORDER BY s.id, ua.created_at DESC`,
+        [userId]
+      );
+      return res.json({ status: 'success', data: { series: result.rows } });
+    } catch (error) {
+      console.error('Get bookmarked series error:', error);
+      return res.status(500).json({ status: 'error', message: 'Error fetching bookmarked series' });
+    }
+  },
+
+  // Get liked series (series the user has liked)
+  getLikedSeries: async (req, res, next) => {
+    try {
+      const userId = req.user.id;
+      const result = await query(
+        `SELECT s.* FROM series s
+         JOIN user_activity ua ON s.id = ua.series_id
+         WHERE ua.user_id = $1 AND ua.activity_type = 'like'
+         ORDER BY ua.created_at DESC`,
+        [userId]
+      );
+      return res.json({ status: 'success', data: { series: result.rows } });
+    } catch (error) {
+      console.error('Get liked series error:', error);
+      return res.status(500).json({ status: 'error', message: 'Error fetching liked series' });
+    }
+  },
+
+  // Get following creators
   getFollowing: async (req, res, next) => {
     try {
       const userId = req.user.id;
@@ -232,12 +278,15 @@ const userController = {
       const creatorId = req.params.id;
       const userId = req.user.id;
       if (creatorId === userId) return res.status(400).json({ status: 'error', message: 'You cannot follow yourself' });
+
       const creatorResult = await query('SELECT id, is_creator, is_admin FROM users WHERE id = $1 AND is_active = true', [creatorId]);
       if (creatorResult.rows.length === 0) return res.status(404).json({ status: 'error', message: 'Creator not found' });
       if (!creatorResult.rows[0].is_creator) return res.status(400).json({ status: 'error', message: 'User is not a creator' });
       if (creatorResult.rows[0].is_admin) return res.status(403).json({ status: 'error', message: 'Cannot follow admin accounts' });
+
       const followResult = await query('SELECT id FROM user_following WHERE follower_id = $1 AND following_id = $2', [userId, creatorId]);
       if (followResult.rows.length > 0) return res.status(409).json({ status: 'error', message: 'You are already following this creator' });
+
       await query('INSERT INTO user_following (follower_id, following_id) VALUES ($1, $2)', [userId, creatorId]);
       await query(`INSERT INTO user_activity (user_id, activity_type, metadata) VALUES ($1, 'follow', $2)`, [userId, JSON.stringify({ following_id: creatorId })]);
       return res.status(201).json({ status: 'success', message: 'Successfully followed creator' });
@@ -295,25 +344,7 @@ const userController = {
     }
   },
 
-  // Get bookmarked series (via user_activity)
-  getBookmarkedSeries: async (req, res, next) => {
-    try {
-      const userId = req.user.id;
-      const result = await query(
-        `SELECT DISTINCT ON (s.id) s.*, ua.created_at as bookmarked_at
-         FROM user_activity ua JOIN series s ON ua.series_id = s.id
-         WHERE ua.user_id = $1 AND ua.activity_type = 'bookmark'
-         ORDER BY s.id, ua.created_at DESC`,
-        [userId]
-      );
-      return res.json({ status: 'success', data: { series: result.rows } });
-    } catch (error) {
-      console.error('Get bookmarked series error:', error);
-      return res.status(500).json({ status: 'error', message: 'Error fetching bookmarked series' });
-    }
-  },
-
-  // Get creator-specific stats
+  // Get creator-specific stats (for creator dashboard)
   getCreatorStats: async (req, res, next) => {
     try {
       const userId = req.user.id;
@@ -332,46 +363,7 @@ const userController = {
     }
   },
 
-  // Get followers (exclude admin accounts)
-  getFollowers: async (req, res, next) => {
-    try {
-      const userId = req.user.id;
-      const result = await query(
-        `SELECT u.id, u.username, u.full_name, u.profile_picture,
-                (SELECT COUNT(*) FROM user_following WHERE following_id = u.id) as followers_count
-         FROM user_following uf
-         JOIN users u ON uf.follower_id = u.id
-         WHERE uf.following_id = $1 AND u.is_admin = false
-         ORDER BY u.username`,
-        [userId]
-      );
-      return res.json({ status: 'success', data: { followers: result.rows } });
-    } catch (error) {
-      console.error('Get followers error:', error);
-      return res.status(500).json({ status: 'error', message: 'Error fetching followers' });
-    }
-  },
-
-  // Get top creators (public, exclude admins)
-  getTopCreators: async (req, res, next) => {
-    try {
-      const result = await query(
-        `SELECT u.id, u.username, u.full_name, u.profile_picture,
-                (SELECT COUNT(*) FROM user_following WHERE following_id = u.id) as followers_count,
-                (SELECT COUNT(*) FROM series WHERE creator_id = u.id AND is_active = true) as series_count
-         FROM users u
-         WHERE u.is_creator = true AND u.is_active = true AND u.is_admin = false
-         ORDER BY followers_count DESC, series_count DESC
-         LIMIT 5`
-      );
-      return res.json({ status: 'success', data: { creators: result.rows } });
-    } catch (error) {
-      console.error('Get top creators error:', error);
-      return res.status(500).json({ status: 'error', message: 'Error fetching top creators' });
-    }
-  },
-
-  // Get creator analytics (no change needed – only for logged-in creator)
+  // Get creator analytics (charts, top episodes, weekly plays)
   getCreatorAnalytics: async (req, res, next) => {
     try {
       const userId = req.user.id;
@@ -432,6 +424,45 @@ const userController = {
       return res.status(500).json({ status: 'error', message: 'Error fetching analytics' });
     }
   },
+
+  // Get followers of the current user (people who follow them)
+  getFollowers: async (req, res, next) => {
+    try {
+      const userId = req.user.id;
+      const result = await query(
+        `SELECT u.id, u.username, u.full_name, u.profile_picture,
+                (SELECT COUNT(*) FROM user_following WHERE following_id = u.id) as followers_count
+         FROM user_following uf
+         JOIN users u ON uf.follower_id = u.id
+         WHERE uf.following_id = $1 AND u.is_admin = false
+         ORDER BY u.username`,
+        [userId]
+      );
+      return res.json({ status: 'success', data: { followers: result.rows } });
+    } catch (error) {
+      console.error('Get followers error:', error);
+      return res.status(500).json({ status: 'error', message: 'Error fetching followers' });
+    }
+  },
+
+  // Get top creators (public, for homepage)
+  getTopCreators: async (req, res, next) => {
+    try {
+      const result = await query(
+        `SELECT u.id, u.username, u.full_name, u.profile_picture,
+                (SELECT COUNT(*) FROM user_following WHERE following_id = u.id) as followers_count,
+                (SELECT COUNT(*) FROM series WHERE creator_id = u.id AND is_active = true) as series_count
+         FROM users u
+         WHERE u.is_creator = true AND u.is_active = true AND u.is_admin = false
+         ORDER BY followers_count DESC, series_count DESC
+         LIMIT 5`
+      );
+      return res.json({ status: 'success', data: { creators: result.rows } });
+    } catch (error) {
+      console.error('Get top creators error:', error);
+      return res.status(500).json({ status: 'error', message: 'Error fetching top creators' });
+    }
+  }
 };
 
 module.exports = userController;
