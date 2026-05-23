@@ -1,4 +1,4 @@
-﻿const express = require('express');
+const express = require('express');
 const compression = require('compression');
 const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
@@ -6,6 +6,7 @@ const passport = require('./src/config/passport');
 const { errorHandler } = require('./src/middleware/errorHandler');
 const { applySecurityMiddleware } = require('./src/middleware/security');
 const environment = require('./src/config/environment');
+const { initializeDatabase } = require('./src/config/database');
 
 const app = express();
 
@@ -48,6 +49,15 @@ app.use((req, res) => res.status(404).json({ error: 'Not found' }));
 app.use(errorHandler);
 
 const PORT = environment.PORT || 5000;
-app.listen(PORT, () => {
-    console.log(`🚀 Secure Story-Go server running on port ${PORT}`);
-});
+
+// Initialize database and start server
+initializeDatabase()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`🚀 Secure Story-Go server running on port ${PORT}`);
+    });
+  })
+  .catch(err => {
+    console.error('❌ Database initialization failed:', err);
+    process.exit(1);
+  });
