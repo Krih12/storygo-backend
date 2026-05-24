@@ -7,29 +7,21 @@ const { isBadBot } = require('../utils/botBlocker');
 const { isIPBlocked, blockIP } = require('../utils/ipBlocker');
 const wafRules = require('../utils/wafRules');
 
-// Global Rate Limiter – tightened
+// Global Rate Limiter
 const globalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 15 * 60 * 1000,
   max: 200,
   message: 'Too many requests, please try again later.',
 });
 
-// Auth limiter – already strict
+// Auth limiter
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 20,
   message: 'Too many login attempts.',
 });
 
-const corsOptions = {
-  origin: ['http://localhost:3000', 'https://your-frontend.onrender.com'], // add your production frontend URL
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-};
-app.use(cors(corsOptions));
-
-// Custom WAF interceptor – ACTIVATED
+// WAF interceptor
 function wafInterceptor(req, res, next) {
   const toCheck = JSON.stringify(req.query) + JSON.stringify(req.body) + req.originalUrl;
   for (const [name, rule] of Object.entries(wafRules)) {
@@ -42,7 +34,6 @@ function wafInterceptor(req, res, next) {
   next();
 }
 
-// Request size limiter
 function requestSizeLimiter(maxSize = '1mb') {
   const size = require('bytes')(maxSize);
   return (req, res, next) => {
@@ -52,7 +43,6 @@ function requestSizeLimiter(maxSize = '1mb') {
   };
 }
 
-// Bot blocker
 function botBlocker(req, res, next) {
   if (isBadBot(req.headers['user-agent'])) {
     blockIP(req.ip, 7200);
@@ -62,7 +52,7 @@ function botBlocker(req, res, next) {
 }
 
 function applySecurityMiddleware(app, environment) {
-  // Helmet with STRICT Content Security Policy
+  // Helmet with CSP
   app.use(
     helmet({
       contentSecurityPolicy: {
@@ -72,12 +62,7 @@ function applySecurityMiddleware(app, environment) {
           styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
           fontSrc: ["'self'", "https://fonts.gstatic.com"],
           imgSrc: ["'self'", "data:", "https://res.cloudinary.com", "https://*.cloudinary.com"],
-          connectSrc: [
-            "'self'",
-            "http://localhost:5000",
-            "https://pocketfm.com",
-            "https://api.cloudinary.com"
-          ],
+          connectSrc: ["'self'", environment.CLIENT_URL, "https://api.cloudinary.com"],
           frameSrc: ["https://js.stripe.com"],
           objectSrc: ["'none'"],
           upgradeInsecureRequests: [],
@@ -86,21 +71,19 @@ function applySecurityMiddleware(app, environment) {
     })
   );
 
+  // ✅ CORS – now inside the function, `app` is defined
   app.use(cors({
     origin: environment.CLIENT_URL,
     credentials: true,
-    methods: ['GET','POST','PUT','DELETE','PATCH'],
-    allowedHeaders: ['Content-Type','Authorization','X-Requested-With'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   }));
 
   app.use(hpp());
   app.use(xss());
   app.use(requestSizeLimiter('10mb'));
   app.use(botBlocker);
-
-  // WAF – now active
   app.use('/api/', wafInterceptor);
-
   app.use('/api/', globalLimiter);
 
   app.use((req, res, next) => {
