@@ -32,9 +32,6 @@ router.get('/me', require('../middleware/authenticate').authenticate, authContro
 router.post('/logout', require('../middleware/authenticate').authenticate, authController.logout);
 router.put('/update-profile', require('../middleware/authenticate').authenticate, authController.updateProfile);
 router.put('/change-password', require('../middleware/authenticate').authenticate, authController.changePassword);
-router.post('/send-otp', otpController.sendOTP);
-router.post('/verify-otp', otpController.verifyOTP);
-
 // ---------- GOOGLE OAUTH ----------
 router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'], session: false }));
 
