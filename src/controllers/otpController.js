@@ -2,13 +2,13 @@ const { query } = require('../config/database');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const environment = require('../config/environment');
-const { sendOTP } = require('../services/emailService');  // import the email sender
+const { sendOTP } = require('../services/emailService');
 
 const generateOTP = () => crypto.randomInt(100000, 999999).toString();
 
 exports.sendOTP = async (req, res) => {
   try {
-    const { email, purpose } = req.body; // 'signup' or 'login'
+    const { email, purpose } = req.body;
     if (!email || !purpose) {
       return res.status(400).json({ error: 'Email and purpose required' });
     }
@@ -22,7 +22,6 @@ exports.sendOTP = async (req, res) => {
       return res.status(429).json({ error: 'Please wait 60 seconds before requesting another OTP' });
     }
 
-    // For signup, check if email already exists
     if (purpose === 'signup') {
       const existing = await query('SELECT id FROM users WHERE email = $1', [email]);
       if (existing.rows.length > 0) {
@@ -30,7 +29,6 @@ exports.sendOTP = async (req, res) => {
       }
     }
 
-    // For login, check if email exists
     if (purpose === 'login') {
       const existing = await query('SELECT id FROM users WHERE email = $1 AND is_active = true', [email]);
       if (existing.rows.length === 0) {
@@ -38,28 +36,25 @@ exports.sendOTP = async (req, res) => {
       }
     }
 
-    // Delete previous unused OTPs
     await query(`DELETE FROM otps WHERE email = $1 AND purpose = $2 AND is_used = false`, [email, purpose]);
 
     const otp = generateOTP();
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
     await query(
       `INSERT INTO otps (email, otp_code, purpose, expires_at) VALUES ($1, $2, $3, $4)`,
       [email, otp, purpose, expiresAt]
     );
 
-    // 🔥 SEND REAL EMAIL (production)
+    // 🔥 SEND REAL EMAIL (no mock)
     try {
       await sendOTP(email, otp, purpose);
-      console.log(`✅ OTP email sent to ${email}`);
+      console.log(`✅ Real OTP email sent to ${email}`);
     } catch (emailError) {
       console.error(`❌ Failed to send OTP email to ${email}:`, emailError.message);
-      // Still return success to user (don't leak that email failed)
-      // But log internally.
+      // Still return success to user (don't leak failure)
     }
 
-    // Always return success to the user (do not reveal if email worked or not)
     return res.json({ success: true, message: 'OTP sent to your email' });
   } catch (error) {
     console.error('Send OTP error:', error);
