@@ -22,9 +22,9 @@ const authLimiter = rateLimit({
 });
 
 const corsOptions = {
-  origin: process.env.CLIENT_URL,   // e.g., https://your-frontend.onrender.com
+  origin: ['http://localhost:3000', 'https://your-frontend.onrender.com'], // add your production frontend URL
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 };
 app.use(cors(corsOptions));
