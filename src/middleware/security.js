@@ -21,6 +21,14 @@ const authLimiter = rateLimit({
   message: 'Too many login attempts.',
 });
 
+const corsOptions = {
+  origin: process.env.CLIENT_URL,   // e.g., https://your-frontend.onrender.com
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+};
+app.use(cors(corsOptions));
+
 // Custom WAF interceptor – ACTIVATED
 function wafInterceptor(req, res, next) {
   const toCheck = JSON.stringify(req.query) + JSON.stringify(req.body) + req.originalUrl;
