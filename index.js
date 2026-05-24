@@ -1,20 +1,27 @@
 const express = require('express');
+const compression = require('compression');
+const morgan = require('morgan');
+const cookieParser = require('cookie-parser');   // ✅ ADD THIS IMPORT
+const passport = require('./src/config/passport');
+const { errorHandler } = require('./src/middleware/errorHandler');
 const { applySecurityMiddleware } = require('./src/middleware/security');
 const environment = require('./src/config/environment');
+const { initializeDatabase } = require('./src/config/database');
 
 const app = express();
 
-applySecurityMiddleware(app, environment); // CORS, helmet, etc.
+// Stripe webhook route MUST come BEFORE express.json() to receive raw body
+app.use('/api/webhooks', require('./src/routes/webhookRoutes'));
 
-// Then other middleware and routes
-app.use(express.json());
-app.use(cookieParser());
-// ... rest of your app
+// Apply security (WAF, helmet, cors, etc.)
+applySecurityMiddleware(app, environment);
+
+// Standard middlewares
 app.use(compression());
 app.use(morgan('combined'));
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ extended: true, limit: '100mb' }));
-app.use(cookieParser());
+app.use(cookieParser());   // ✅ now defined
 app.use(passport.initialize());
 app.set('trust proxy', 1);
 
