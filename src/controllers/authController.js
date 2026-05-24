@@ -61,24 +61,21 @@ const authController = {
   },
 
   // ---------- LOGIN ----------
-  login: async (req, res, next) => {
-    try {
-      const { email, password } = req.body;
-
-      const result = await query(
-        'SELECT id, username, email, full_name, profile_picture, password_hash, is_creator, is_admin, is_active, preferred_language FROM users WHERE email = $1 AND is_active = true',
-        [email]
-      );
-
-      if (result.rows.length === 0) {
-        return res.status(401).json({ status: 'error', message: 'Invalid email or password' });
-      }
-
-      const user = result.rows[0];
-      const isValidPassword = await bcrypt.compare(password, user.password_hash);
-      if (!isValidPassword) {
-        return res.status(401).json({ status: 'error', message: 'Invalid email or password' });
-      }
+  logout: async (req, res) => {
+  try {
+    res.clearCookie('token', {
+      httpOnly: true,
+      secure: environment.NODE_ENV === 'production',
+      sameSite: environment.NODE_ENV === 'production' ? 'none' : 'lax',
+      path: '/',
+      domain: environment.NODE_ENV === 'production' ? '.onrender.com' : undefined
+    });
+    return res.json({ status: 'success', message: 'Logged out successfully' });
+  } catch (error) {
+    console.error('Logout error:', error);
+    return res.status(500).json({ status: 'error', message: 'Error logging out' });
+  }
+}
 
       // Update last login
       query('UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = $1', [user.id]).catch(console.error);
