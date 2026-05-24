@@ -38,7 +38,7 @@ const getClient = async () => {
 };
 
 // ============================================
-// INLINE SCHEMA (no external files)
+// INLINE SCHEMA (no external files needed)
 // ============================================
 const getSchemaSQL = () => `
 -- Enable extensions
@@ -408,32 +408,32 @@ CREATE INDEX IF NOT EXISTS idx_episodes_title_trgm ON episodes USING gin(title g
 `;
 
 const getSeedSQL = () => `
+-- Categories
 INSERT INTO categories (name, description, slug, display_order) VALUES
 ('Action & Adventure', 'Thrilling stories full of action', 'action-adventure', 1),
-('Romance', 'Love stories that capture the heart', 'romance', 2)
+('Romance', 'Love stories that capture the heart', 'romance', 2),
+('Horror', 'Chilling tales that keep you on edge', 'horror', 3),
+('Science Fiction', 'Futuristic stories', 'science-fiction', 4),
+('Fantasy', 'Magical worlds', 'fantasy', 5),
+('Mystery & Thriller', 'Suspenseful stories', 'mystery-thriller', 6),
+('Comedy', 'Stories that make you laugh', 'comedy', 7),
+('Drama', 'Emotional narratives', 'drama', 8),
+('Historical Fiction', 'Stories set in history', 'historical-fiction', 9),
+('Self-Help', 'Personal development', 'self-help', 10)
 ON CONFLICT (slug) DO NOTHING;
 
+-- Subscription plans
 INSERT INTO subscription_plans (name, price_amount, currency, interval) VALUES
 ('Monthly Premium', 4000, 'inr', 'month'),
 ('Yearly Premium', 40000, 'inr', 'year')
-ON CONFLICT DO NOTHING;
+ON CONFLICT (name) DO NOTHING;
 
-INSERT INTO users (
-    username,
-    email,
-    password_hash,
-    full_name,
-    is_admin,
-    is_creator
-) VALUES (
-    'admin',
-    'admin@example.com',
-    '$2b$12$r9YAdm9sU16ZS0c7yJw01.9qNak2kv7zu4tgzLKvqk.BWzOd851BG',
-    'Platform Admin',
-    true,
-    false
-)
-ON CONFLICT DO NOTHING;
+-- Admin user (skip if username 'admin' already exists)
+INSERT INTO users (username, email, password_hash, full_name, is_admin, is_creator) VALUES
+('admin', 'admin@example.com',
+ '$2b$12$r9YAdm9sU16ZS0c7yJw01.9qNak2kv7zu4tgzLKvqk.BWzOd851BG',
+ 'Platform Admin', true, false)
+ON CONFLICT (username) DO NOTHING;
 `;
 
 const initializeDatabase = async () => {
