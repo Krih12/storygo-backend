@@ -29,13 +29,15 @@ const authController = {
       const user = result.rows[0];
       const token = jwt.sign({ userId: user.id, email }, environment.JWT_SECRET, { expiresIn: '7d' });
 
-     const isProduction = process.env.NODE_ENV === 'production';
+     // After generating the token
+const isLocalhost = req.headers.origin?.includes('localhost');
+const isProd = process.env.NODE_ENV === 'production' && !isLocalhost;
 res.cookie('token', token, {
   httpOnly: true,
-  secure: isProduction,          // true on HTTPS (Render), false on localhost
-  sameSite: isProduction ? 'none' : 'lax',
+  secure: isProd,
+  sameSite: isProd ? 'none' : 'lax',
   maxAge: 7 * 24 * 60 * 60 * 1000,
-  path: '/'
+  path: '/',
 });
 
       res.status(201).json({ status: 'success', data: { user, token } });
