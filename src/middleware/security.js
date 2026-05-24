@@ -71,13 +71,15 @@ function applySecurityMiddleware(app, environment) {
     })
   );
 
-  // ✅ CORS – now inside the function, `app` is defined
-  app.use(cors({
-    origin: environment.CLIENT_URL,
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  }));
+ // In src/middleware/security.js, inside applySecurityMiddleware()
+const corsOptions = {
+  origin: ['http://localhost:3000', environment.CLIENT_URL].filter(Boolean),
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+};
+app.use(cors(corsOptions));
+app.options('*', cors()); // handle preflight
 
   app.use(hpp());
   app.use(xss());
