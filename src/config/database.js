@@ -426,14 +426,9 @@ ON CONFLICT (slug) DO NOTHING;
 INSERT INTO subscription_plans (name, price_amount, currency, interval) VALUES
 ('Monthly Premium', 4000, 'inr', 'month'),
 ('Yearly Premium', 40000, 'inr', 'year')
-ON CONFLICT (name) DO NOTHING;
+ON CONFLICT DO NOTHING;
 
--- Admin user (skip if username 'admin' already exists)
-INSERT INTO users (username, email, password_hash, full_name, is_admin, is_creator) VALUES
-('admin', 'admin@example.com',
- '$2b$12$r9YAdm9sU16ZS0c7yJw01.9qNak2kv7zu4tgzLKvqk.BWzOd851BG',
- 'Platform Admin', true, false)
-ON CONFLICT (username) DO NOTHING;
+
 `;
 
 const initializeDatabase = async () => {
