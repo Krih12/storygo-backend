@@ -71,16 +71,18 @@ function applySecurityMiddleware(app, environment) {
     })
   );
 
- // In src/middleware/security.js, inside applySecurityMiddleware()
-const corsOptions = {
-  origin: ['http://localhost:3000', environment.CLIENT_URL].filter(Boolean),
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-};
-app.use(cors(corsOptions));
-app.options('*', cors()); // handle preflight
+  // CORS – allow localhost for development and the production client URL
+  const corsOptions = {
+    origin: ['http://localhost:3000', environment.CLIENT_URL].filter(Boolean),
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  };
+  app.use(cors(corsOptions));
+  // Handle preflight requests explicitly
+  app.options('*', cors(corsOptions));
 
+  // Other security middleware
   app.use(hpp());
   app.use(xss());
   app.use(requestSizeLimiter('10mb'));
@@ -88,6 +90,7 @@ app.options('*', cors()); // handle preflight
   app.use('/api/', wafInterceptor);
   app.use('/api/', globalLimiter);
 
+  // IP block check
   app.use((req, res, next) => {
     if (isIPBlocked(req.ip)) return res.status(403).json({ error: 'IP blocked' });
     next();
