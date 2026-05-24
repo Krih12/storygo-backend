@@ -55,4 +55,29 @@ const authorizeCreator = (req, res, next) => {
   next();
 };
 
-module.exports = { authenticate, optionalAuth, authorizeCreator };
+const authorizeOwner = (resourceType) => {
+  return async (req, res, next) => {
+    try {
+      const resourceId = req.params.id;
+      let queryText;
+      switch (resourceType) {
+        case 'series':
+          queryText = 'SELECT creator_id FROM series WHERE id = $1';
+          break;
+        case 'episode':
+          queryText = `SELECT s.creator_id FROM episodes e JOIN series s ON e.series_id = s.id WHERE e.id = $1`;
+          break;
+        default:
+          return res.status(400).json({ error: 'Invalid resource type' });
+      }
+      const result = await query(queryText, [resourceId]);
+      if (result.rows.length === 0) return res.status(404).json({ error: 'Resource not found' });
+      if (result.rows[0].creator_id !== req.user.id) return res.status(403).json({ error: 'Not authorized' });
+      next();
+    } catch (err) {
+      next(err);
+    }
+  };
+};
+
+module.exports = { authenticate, optionalAuth, authorizeCreator, authorizeOwner };
