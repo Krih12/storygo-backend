@@ -39,11 +39,13 @@ const authController = {
         { expiresIn: environment.JWT_EXPIRE }
       );
 
+      const isProduction = environment.NODE_ENV === 'production';
       res.cookie('token', token, {
         httpOnly: true,
-        secure: environment.NODE_ENV === 'production',
-        sameSite: environment.NODE_ENV === 'production' ? 'none' : 'lax',
-        maxAge: 7 * 24 * 60 * 60 * 1000
+        secure: isProduction,
+        sameSite: isProduction ? 'none' : 'lax',
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+        path: '/'
       });
 
       return res.status(201).json({
@@ -61,23 +63,26 @@ const authController = {
   },
 
   // ---------- LOGIN ----------
-  logout: async (req, res) => {
-  try {
-    res.clearCookie('token', {
-      httpOnly: true,
-      secure: environment.NODE_ENV === 'production',
-      sameSite: environment.NODE_ENV === 'production' ? 'none' : 'lax',
-      path: '/',
-      domain: environment.NODE_ENV === 'production' ? '.onrender.com' : undefined
-    });
-    return res.json({ status: 'success', message: 'Logged out successfully' });
-  } catch (error) {
-    console.error('Logout error:', error);
-    return res.status(500).json({ status: 'error', message: 'Error logging out' });
-  }
-}
+  login: async (req, res, next) => {
+    try {
+      const { email, password } = req.body;
 
-      // Update last login
+      const result = await query(
+        'SELECT id, username, email, full_name, profile_picture, password_hash, is_creator, is_admin, is_active, preferred_language FROM users WHERE email = $1 AND is_active = true',
+        [email]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(401).json({ status: 'error', message: 'Invalid email or password' });
+      }
+
+      const user = result.rows[0];
+      const isValidPassword = await bcrypt.compare(password, user.password_hash);
+      if (!isValidPassword) {
+        return res.status(401).json({ status: 'error', message: 'Invalid email or password' });
+      }
+
+      // Update last login (fire and forget)
       query('UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = $1', [user.id]).catch(console.error);
 
       // Log admin login
@@ -98,11 +103,13 @@ const authController = {
 
       const { password_hash, ...userWithoutPassword } = user;
 
+      const isProduction = environment.NODE_ENV === 'production';
       res.cookie('token', token, {
         httpOnly: true,
-        secure: environment.NODE_ENV === 'production',
-        sameSite: environment.NODE_ENV === 'production' ? 'none' : 'lax',
-        maxAge: 7 * 24 * 60 * 60 * 1000
+        secure: isProduction,
+        sameSite: isProduction ? 'none' : 'lax',
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+        path: '/'
       });
 
       return res.json({
@@ -140,15 +147,21 @@ const authController = {
   },
 
   // ---------- LOGOUT ----------
- logout: async (req, res) => {
-  res.clearCookie('token', {
-    httpOnly: true,
-    secure: environment.NODE_ENV === 'production',
-    sameSite: environment.NODE_ENV === 'production' ? 'none' : 'lax',
-    path: '/'
-  });
-  return res.json({ status: 'success', message: 'Logged out successfully' });
-}
+  logout: async (req, res) => {
+    try {
+      const isProduction = environment.NODE_ENV === 'production';
+      res.clearCookie('token', {
+        httpOnly: true,
+        secure: isProduction,
+        sameSite: isProduction ? 'none' : 'lax',
+        path: '/'
+      });
+      return res.json({ status: 'success', message: 'Logged out successfully' });
+    } catch (error) {
+      console.error('Logout error:', error);
+      return res.status(500).json({ status: 'error', message: 'Error logging out' });
+    }
+  },
 
   // ---------- UPDATE PROFILE ----------
   updateProfile: async (req, res, next) => {
