@@ -2,13 +2,16 @@ const { query } = require('../config/database');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const environment = require('../config/environment');
+const { sendOTP } = require('../services/emailService');  // import the email sender
 
 const generateOTP = () => crypto.randomInt(100000, 999999).toString();
 
 exports.sendOTP = async (req, res) => {
   try {
     const { email, purpose } = req.body; // 'signup' or 'login'
-    if (!email || !purpose) return res.status(400).json({ error: 'Email and purpose required' });
+    if (!email || !purpose) {
+      return res.status(400).json({ error: 'Email and purpose required' });
+    }
 
     // Rate limit: 1 OTP per minute per email
     const recent = await query(
@@ -39,23 +42,28 @@ exports.sendOTP = async (req, res) => {
     await query(`DELETE FROM otps WHERE email = $1 AND purpose = $2 AND is_used = false`, [email, purpose]);
 
     const otp = generateOTP();
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
 
     await query(
       `INSERT INTO otps (email, otp_code, purpose, expires_at) VALUES ($1, $2, $3, $4)`,
       [email, otp, purpose, expiresAt]
     );
 
-    // 🔥 MOCK OTP – prints to Render logs (no real email)
-    console.log(`🔐 MOCK OTP for ${email}: ${otp}`);
+    // 🔥 SEND REAL EMAIL (production)
+    try {
+      await sendOTP(email, otp, purpose);
+      console.log(`✅ OTP email sent to ${email}`);
+    } catch (emailError) {
+      console.error(`❌ Failed to send OTP email to ${email}:`, emailError.message);
+      // Still return success to user (don't leak that email failed)
+      // But log internally.
+    }
 
-    // In production, you would call: await sendOTP(email, otp, purpose);
-    // But for now, skip email sending completely.
-
-    res.json({ success: true, message: 'OTP sent (mock mode – check Render logs)' });
+    // Always return success to the user (do not reveal if email worked or not)
+    return res.json({ success: true, message: 'OTP sent to your email' });
   } catch (error) {
     console.error('Send OTP error:', error);
-    res.status(500).json({ error: 'Failed to send OTP' });
+    return res.status(500).json({ error: 'Failed to send OTP' });
   }
 };
 
@@ -93,13 +101,13 @@ exports.verifyOTP = async (req, res) => {
       const user = userResult.rows[0];
       const token = jwt.sign({ userId: user.id, email: user.email }, environment.JWT_SECRET, { expiresIn: environment.JWT_EXPIRE });
 
-    const isProduction = environment.NODE_ENV === 'production';
-res.cookie('token', token, {
-  httpOnly: true,
-  secure: isProduction,
-  sameSite: isProduction ? 'none' : 'lax',   // production mein 'none' chahiye
-  maxAge: 7 * 24 * 60 * 60 * 1000,
-});
+      const isProduction = environment.NODE_ENV === 'production';
+      res.cookie('token', token, {
+        httpOnly: true,
+        secure: isProduction,
+        sameSite: isProduction ? 'none' : 'lax',
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+      });
 
       return res.json({ success: true, message: 'Login successful', user, token });
     }
