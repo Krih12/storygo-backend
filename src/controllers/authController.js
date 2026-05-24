@@ -29,14 +29,14 @@ const authController = {
       const user = result.rows[0];
       const token = jwt.sign({ userId: user.id, email }, environment.JWT_SECRET, { expiresIn: '7d' });
 
-      const isProd = environment.NODE_ENV === 'production';
-      res.cookie('token', token, {
-        httpOnly: true,
-        secure: isProd,
-        sameSite: isProd ? 'none' : 'lax',
-        maxAge: 7 * 24 * 60 * 60 * 1000,
-        path: '/'
-      });
+     const isProduction = process.env.NODE_ENV === 'production';
+res.cookie('token', token, {
+  httpOnly: true,
+  secure: isProduction,          // true on HTTPS (Render), false on localhost
+  sameSite: isProduction ? 'none' : 'lax',
+  maxAge: 7 * 24 * 60 * 60 * 1000,
+  path: '/'
+});
 
       res.status(201).json({ status: 'success', data: { user, token } });
     } catch (error) {
