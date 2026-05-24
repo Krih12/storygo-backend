@@ -1,4 +1,3 @@
-// src/middleware/authenticate.js
 const jwt = require('jsonwebtoken');
 const environment = require('../config/environment');
 const { query } = require('../config/database');
@@ -6,107 +5,25 @@ const { query } = require('../config/database');
 const authenticate = async (req, res, next) => {
   try {
     let token;
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      token = authHeader.split(' ')[1];
-    } else if (req.cookies && req.cookies.token) {
-      token = req.cookies.token;
-    }
+    if (req.cookies?.token) token = req.cookies.token;
+    else if (req.headers.authorization?.startsWith('Bearer ')) token = req.headers.authorization.split(' ')[1];
 
-    if (!token) {
-      return res.status(401).json({
-        status: 'error',
-        message: 'Authentication required. Please login to access this resource.'
-      });
-    }
+    if (!token) return res.status(401).json({ error: 'Authentication required' });
 
     const decoded = jwt.verify(token, environment.JWT_SECRET);
-
-    // ✅ IMPORTANT: SELECT is_admin column
     const result = await query(
-      `SELECT id, username, email, is_creator, is_admin, is_active
-       FROM users WHERE id = $1 AND is_active = true`,
+      `SELECT id, username, email, is_creator, is_admin, is_active FROM users WHERE id = $1 AND is_active = true`,
       [decoded.userId]
     );
 
-    if (result.rows.length === 0) {
-      return res.status(401).json({
-        status: 'error',
-        message: 'User account not found or has been deactivated.'
-      });
-    }
+    if (!result.rows.length) return res.status(401).json({ error: 'User not found or inactive' });
 
-    req.user = result.rows[0];  // includes is_admin
+    req.user = result.rows[0]; // includes is_admin
     next();
-  } catch (error) {
-    if (error.name === 'JsonWebTokenError') {
-      return res.status(401).json({ status: 'error', message: 'Invalid token. Please login again.' });
-    }
-    if (error.name === 'TokenExpiredError') {
-      return res.status(401).json({ status: 'error', message: 'Token expired. Please login again.' });
-    }
-    console.error('Authentication error:', error);
-    return res.status(500).json({ status: 'error', message: 'Authentication failed due to server error.' });
+  } catch (err) {
+    console.error('Auth error:', err);
+    return res.status(401).json({ error: 'Invalid or expired token' });
   }
 };
 
-const optionalAuth = async (req, res, next) => {
-  try {
-    let token;
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      token = authHeader.split(' ')[1];
-    } else if (req.cookies && req.cookies.token) {
-      token = req.cookies.token;
-    }
-
-    if (token) {
-      const decoded = jwt.verify(token, environment.JWT_SECRET);
-      const result = await query(
-        `SELECT id, username, email, is_creator, is_admin, is_active
-         FROM users WHERE id = $1 AND is_active = true`,
-        [decoded.userId]
-      );
-      if (result.rows.length > 0) {
-        req.user = result.rows[0];
-      }
-    }
-    next();
-  } catch (error) {
-    next();
-  }
-};
-
-const authorizeCreator = (req, res, next) => {
-  if (!req.user) return res.status(401).json({ status: 'error', message: 'Authentication required.' });
-  if (!req.user.is_creator) return res.status(403).json({ status: 'error', message: 'Access denied. Creator account required.' });
-  next();
-};
-
-const authorizeOwner = (resourceType) => {
-  return async (req, res, next) => {
-    try {
-      const resourceId = req.params.id;
-      let queryText;
-      switch (resourceType) {
-        case 'series':
-          queryText = 'SELECT creator_id FROM series WHERE id = $1';
-          break;
-        case 'episode':
-          queryText = `SELECT s.creator_id FROM episodes e JOIN series s ON e.series_id = s.id WHERE e.id = $1`;
-          break;
-        default:
-          return res.status(400).json({ status: 'error', message: 'Invalid resource type for ownership check.' });
-      }
-      const result = await query(queryText, [resourceId]);
-      if (result.rows.length === 0) return res.status(404).json({ status: 'error', message: 'Resource not found.' });
-      if (result.rows[0].creator_id !== req.user.id) return res.status(403).json({ status: 'error', message: 'You do not have permission to modify this resource.' });
-      next();
-    } catch (error) {
-      console.error('Ownership check error:', error);
-      return res.status(500).json({ status: 'error', message: 'Error checking resource ownership.' });
-    }
-  };
-};
-
-module.exports = { authenticate, optionalAuth, authorizeCreator, authorizeOwner };
+module.exports = { authenticate };
