@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { requireAdmin } = require('../middleware/adminAuth');
 const adminController = require('../controllers/adminController');
+const requireAdmin = require('../middleware/requireAdmin');
 
 // All routes require admin authentication
 router.use(requireAdmin);
@@ -24,6 +25,9 @@ router.get('/episodes', adminController.getAllEpisodes);
 
 // Payments
 router.get('/payments', adminController.getPayments);
+
+router.use(requireAdmin);
+
 
 // Subscriptions
 router.get('/subscriptions', adminController.getSubscriptions);
