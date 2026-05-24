@@ -144,19 +144,20 @@ const authController = {
   },
 
   // ---------- LOGOUT ----------
-  logout: async (req, res, next) => {
-    try {
-      res.clearCookie('token', {
-        httpOnly: true,
-        secure: environment.NODE_ENV === 'production',
-        sameSite: 'strict'
-      });
-      return res.json({ status: 'success', message: 'Logged out successfully' });
-    } catch (error) {
-      console.error('Logout error:', error);
-      return res.status(500).json({ status: 'error', message: 'Error logging out' });
-    }
-  },
+logout: async (req, res) => {
+  try {
+    res.clearCookie('token', {
+      httpOnly: true,
+      secure: environment.NODE_ENV === 'production',
+      sameSite: environment.NODE_ENV === 'production' ? 'none' : 'lax',
+      path: '/'
+    });
+    return res.json({ status: 'success', message: 'Logged out successfully' });
+  } catch (error) {
+    console.error('Logout error:', error);
+    return res.status(500).json({ status: 'error', message: 'Error logging out' });
+  }
+}
 
   // ---------- UPDATE PROFILE ----------
   updateProfile: async (req, res, next) => {
