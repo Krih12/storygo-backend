@@ -72,14 +72,16 @@ res.cookie('token', token, {
       const token = jwt.sign({ userId: user.id, email }, environment.JWT_SECRET, { expiresIn: '7d' });
       const { password_hash, ...safeUser } = user;
 
-      const isProd = environment.NODE_ENV === 'production';
-      res.cookie('token', token, {
-        httpOnly: true,
-        secure: isProd,
-        sameSite: isProd ? 'none' : 'lax',
-        maxAge: 7 * 24 * 60 * 60 * 1000,
-        path: '/'
-      });
+     // After generating the token
+const isLocalhost = req.headers.origin?.includes('localhost');
+const isProd = process.env.NODE_ENV === 'production' && !isLocalhost;
+res.cookie('token', token, {
+  httpOnly: true,
+  secure: isProd,
+  sameSite: isProd ? 'none' : 'lax',
+  maxAge: 7 * 24 * 60 * 60 * 1000,
+  path: '/',
+});
 
       res.json({ status: 'success', data: { user: safeUser, token } });
     } catch (error) {
