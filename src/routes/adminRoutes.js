@@ -26,7 +26,6 @@ router.get('/episodes', adminController.getAllEpisodes);
 // Payments
 router.get('/payments', adminController.getPayments);
 
-router.use(requireAdmin);
 
 
 // Subscriptions
