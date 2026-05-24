@@ -42,7 +42,7 @@ const authController = {
       res.cookie('token', token, {
         httpOnly: true,
         secure: environment.NODE_ENV === 'production',
-        sameSite: 'strict',
+        sameSite: environment.NODE_ENV === 'production' ? 'none' : 'lax',
         maxAge: 7 * 24 * 60 * 60 * 1000
       });
 
@@ -60,7 +60,7 @@ const authController = {
     }
   },
 
-  // ---------- LOGIN (optimized) ----------
+  // ---------- LOGIN ----------
   login: async (req, res, next) => {
     try {
       const { email, password } = req.body;
@@ -80,10 +80,10 @@ const authController = {
         return res.status(401).json({ status: 'error', message: 'Invalid email or password' });
       }
 
-      // Update last login (fire and forget – don't await for faster response)
+      // Update last login
       query('UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = $1', [user.id]).catch(console.error);
 
-      // Log admin login if needed (async, don't block)
+      // Log admin login
       if (user.is_admin) {
         const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress || req.ip;
         query(
@@ -99,13 +99,12 @@ const authController = {
         { expiresIn: environment.JWT_EXPIRE }
       );
 
-      // Remove password_hash from response
       const { password_hash, ...userWithoutPassword } = user;
 
       res.cookie('token', token, {
         httpOnly: true,
         secure: environment.NODE_ENV === 'production',
-        sameSite: 'strict',
+        sameSite: environment.NODE_ENV === 'production' ? 'none' : 'lax',
         maxAge: 7 * 24 * 60 * 60 * 1000
       });
 
@@ -120,7 +119,7 @@ const authController = {
     }
   },
 
-  // ---------- GET CURRENT USER (optimized, lightweight) ----------
+  // ---------- GET CURRENT USER ----------
   getMe: async (req, res, next) => {
     try {
       const result = await query(
@@ -144,20 +143,20 @@ const authController = {
   },
 
   // ---------- LOGOUT ----------
-logout: async (req, res) => {
-  try {
-    res.clearCookie('token', {
-      httpOnly: true,
-      secure: environment.NODE_ENV === 'production',
-      sameSite: environment.NODE_ENV === 'production' ? 'none' : 'lax',
-      path: '/'
-    });
-    return res.json({ status: 'success', message: 'Logged out successfully' });
-  } catch (error) {
-    console.error('Logout error:', error);
-    return res.status(500).json({ status: 'error', message: 'Error logging out' });
-  }
-}
+  logout: async (req, res, next) => {
+    try {
+      res.clearCookie('token', {
+        httpOnly: true,
+        secure: environment.NODE_ENV === 'production',
+        sameSite: environment.NODE_ENV === 'production' ? 'none' : 'lax',
+        path: '/'
+      });
+      return res.json({ status: 'success', message: 'Logged out successfully' });
+    } catch (error) {
+      console.error('Logout error:', error);
+      return res.status(500).json({ status: 'error', message: 'Error logging out' });
+    }
+  },
 
   // ---------- UPDATE PROFILE ----------
   updateProfile: async (req, res, next) => {
