@@ -1,10 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const { requireAdmin } = require('../middleware/adminAuth');
-const adminController = require('../controllers/adminController');
+const { authenticate } = require('../middleware/authenticate');
+const { requireAdmin } = require('../middleware/adminAuth'); // or your own requireAdmin
 
-// All routes require admin authentication
-router.use(requireAdmin);
+router.use(authenticate);  // FIRST – populates req.user
+router.use(requireAdmin); 
 
 // Dashboard
 router.get('/dashboard', adminController.getDashboardStats);
