@@ -22,7 +22,7 @@ const authenticate = async (req, res, next) => {
     const decoded = jwt.verify(token, environment.JWT_SECRET);
 
     // Only fetch essential fields – lightweight
-   const result = await query(
+  const result = await query(
   `SELECT id, username, email, is_creator, is_admin, is_active
    FROM users WHERE id = $1 AND is_active = true`,
   [decoded.userId]
